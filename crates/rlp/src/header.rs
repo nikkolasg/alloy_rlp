@@ -85,12 +85,23 @@ impl Header {
     /// Returns an error if the buffer is too short or the header is invalid.
     #[inline]
     pub fn decode_bytes<'a>(buf: &mut &'a [u8], is_list: bool) -> Result<&'a [u8]> {
-        let Self {
-            list,
-            payload_length,
-        } = Self::decode(buf)?;
+        let r = Self::decode_bytes_with_header(buf, is_list);
+        r.map(|(_, b)| b)
+    }
 
-        if list != is_list {
+    /// Decodes the next payload from the given buffer, advancing it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the buffer is too short or the header is invalid.
+    #[inline]
+    pub fn decode_bytes_with_header<'a>(
+        buf: &mut &'a [u8],
+        is_list: bool,
+    ) -> Result<(Self, &'a [u8])> {
+        let h = Self::decode(buf)?;
+
+        if h.list != is_list {
             return Err(if is_list {
                 Error::UnexpectedString
             } else {
@@ -99,12 +110,12 @@ impl Header {
         }
 
         // SAFETY: this is already checked in `decode`
-        if buf.remaining() < payload_length {
+        if buf.remaining() < h.payload_length {
             unsafe { unreachable_unchecked() }
         }
-        let bytes = unsafe { buf.get_unchecked(..payload_length) };
-        buf.advance(payload_length);
-        Ok(bytes)
+        let bytes = unsafe { buf.get_unchecked(..h.payload_length) };
+        buf.advance(h.payload_length);
+        Ok((h, bytes))
     }
 
     /// Decodes a string slice from the given buffer, advancing it.
